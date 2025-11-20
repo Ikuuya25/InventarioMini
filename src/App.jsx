@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Package, ShoppingCart, TrendingUp, Settings, LogOut, Plus, Search, Edit2, Trash2, Check, X, AlertCircle, Minus, DollarSign, Receipt, BarChart3, Users, Menu, Eye, EyeOff, Box, TrendingDown } from 'lucide-react';
-import { db } from "../firebase";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { db } from "./firebase";
+import { collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot } from "firebase/firestore";
 
 export default function ManagementSystem() {
   // Autenticación
@@ -16,6 +16,8 @@ export default function ManagementSystem() {
     { id: 2, username: 'vendedor', password: 'vend123', name: 'Vendedor', role: 'vendedor' },
     { id: 3, username: 'supervisor', password: 'super123', name: 'Supervisor', role: 'supervisor' }
   ];
+
+  
 
   // Sistema de permisos
   const permissions = {
@@ -75,19 +77,10 @@ export default function ManagementSystem() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Estado productos
-  const [products, setProducts] = useState([
-    { id: 1, name: 'Laptop Dell XPS 15', sku: 'LPT-001', quantity: 15, minStock: 5, price: 1299.99, category: 'Electrónica', status: 'En stock', supplier: 'Dell Inc.' },
-    { id: 2, name: 'Mouse Logitech MX Master', sku: 'MSE-002', quantity: 45, minStock: 10, price: 99.99, category: 'Accesorios', status: 'En stock', supplier: 'Logitech' },
-    { id: 3, name: 'Teclado Mecánico RGB', sku: 'KBD-003', quantity: 3, minStock: 8, price: 149.99, category: 'Accesorios', status: 'Stock bajo', supplier: 'Corsair' },
-    { id: 4, name: 'Monitor LG 27"', sku: 'MON-004', quantity: 0, minStock: 5, price: 349.99, category: 'Electrónica', status: 'Agotado', supplier: 'LG Electronics' },
-    { id: 5, name: 'Auriculares Sony WH-1000XM5', sku: 'AUD-005', quantity: 22, minStock: 10, price: 399.99, category: 'Audio', status: 'En stock', supplier: 'Sony' },
-  ]);
+  const [products, setProducts] = useState([]);
 
   // Estado venta
-  const [sales, setSales] = useState([
-    { id: 1, date: '2025-11-18T10:30:00', items: [{ id: 1, name: 'Laptop Dell XPS 15', quantity: 2, price: 1299.99 }], total: 2599.98, vendedor: 'Admin' },
-    { id: 2, date: '2025-11-18T14:15:00', items: [{ id: 2, name: 'Mouse Logitech', quantity: 5, price: 99.99 }], total: 499.95, vendedor: 'Admin' }
-  ]);
+  const [sales, setSales] = useState([]);
   const [cart, setCart] = useState([]);
 
   // Estado Modal
@@ -121,10 +114,10 @@ export default function ManagementSystem() {
   };
 
   // Logica productos
-  const handleAddProduct = () => {
+  const handleAddProduct = async () => {
     if (!newProduct.name || !newProduct.sku) return;
+
     const product = {
-      id: Date.now(),
       name: newProduct.name,
       sku: newProduct.sku,
       quantity: parseInt(newProduct.quantity) || 0,
@@ -132,40 +125,64 @@ export default function ManagementSystem() {
       price: parseFloat(newProduct.price) || 0,
       category: newProduct.category,
       supplier: newProduct.supplier,
-      status: 'En stock'
+      status: "En stock"
     };
-    if (product.quantity === 0) product.status = 'Agotado';
-    else if (product.quantity <= product.minStock) product.status = 'Stock bajo';
-    setProducts([...products, product]);
-    setNewProduct({ name: '', sku: '', quantity: '', minStock: '', price: '', category: 'Electrónica', supplier: '' });
+
+    if (product.quantity === 0) product.status = "Agotado";
+    else if (product.quantity <= product.minStock) product.status = "Stock bajo";
+
+    try {
+      await addDoc(productsCollection, product);
+    } catch (error) {
+      console.error("Error al agregar producto:", error);
+    }
+
+    setNewProduct({
+      name: "",
+      sku: "",
+      quantity: "",
+      minStock: "",
+      price: "",
+      category: "Electrónica",
+      supplier: ""
+    });
+
     setShowAddProductModal(false);
   };
 
-  const handleDeleteProduct = (id) => {
-    if (!hasPermission('canDeleteProducts')) {
-      alert('❌ No tienes permiso para eliminar productos');
+  const handleDeleteProduct = async (id) => {
+    if (!hasPermission("canDeleteProducts")) {
+      alert("❌ No tienes permiso para eliminar productos");
       return;
     }
-    if (window.confirm('¿Estás seguro de eliminar este producto?')) {
-      setProducts(products.filter(p => p.id !== id));
+
+    if (!window.confirm("¿Estás seguro de eliminar este producto?")) return;
+
+    try {
+      await deleteDoc(doc(db, "products", id));
+    } catch (error) {
+      console.error("Error al eliminar producto:", error);
     }
   };
 
-  const handleSaveEdit = () => {
-    if (!hasPermission('canEditProducts')) {
-      alert('No tienes permiso para editar productos');
+  const handleSaveEdit = async () => {
+    if (!hasPermission("canEditProducts")) {
+      alert("No tienes permiso para editar productos");
       return;
     }
-    setProducts(products.map(p => {
-      if (p.id === editingProduct.id) {
-        const updated = { ...editingProduct };
-        if (updated.quantity === 0) updated.status = 'Agotado';
-        else if (updated.quantity <= updated.minStock) updated.status = 'Stock bajo';
-        else updated.status = 'En stock';
-        return updated;
-      }
-      return p;
-    }));
+
+    const updated = { ...editingProduct };
+
+    if (updated.quantity === 0) updated.status = "Agotado";
+    else if (updated.quantity <= updated.minStock) updated.status = "Stock bajo";
+    else updated.status = "En stock";
+
+    try {
+      await updateDoc(doc(db, "products", updated.id), updated);
+    } catch (error) {
+      console.error("Error al actualizar producto:", error);
+    }
+
     setEditingProduct(null);
   };
 
@@ -204,11 +221,13 @@ export default function ManagementSystem() {
     setCart(cart.map(item => item.id === productId ? { ...item, quantity: newQuantity } : item));
   };
 
-  const completeSale = () => {
+  const completeSale = async () => {
     if (cart.length === 0) {
       alert('El carrito está vacío');
       return;
     }
+
+    // Crear venta igual que antes
     const sale = {
       id: Date.now(),
       date: new Date().toISOString(),
@@ -216,23 +235,57 @@ export default function ManagementSystem() {
       total: cartTotal,
       vendedor: currentUser.name
     };
-    setSales([sale, ...sales]);
-    cart.forEach(cartItem => {
+
+    try {
+      // 👉 Guardar venta en Firestore
+      await addDoc(collection(db, "sales"), sale);
+
+      // 👉 Actualizar stock en Firestore para cada producto vendido
+      for (const cartItem of cart) {
+        const productRef = doc(db, "products", cartItem.id);
+
+        const newQuantity = cartItem.quantity > 0
+          ? (products.find(p => p.id === cartItem.id).quantity - cartItem.quantity)
+          : 0;
+
+        let newStatus = 'En stock';
+        const original = products.find(p => p.id === cartItem.id);
+        if (newQuantity === 0) newStatus = 'Agotado';
+        else if (newQuantity <= original.minStock) newStatus = 'Stock bajo';
+
+        await updateDoc(productRef, {
+          quantity: newQuantity,
+          status: newStatus
+        });
+      }
+
+      // 👉 Actualización local (tu UI seguirá funcionando igual)
+      setSales([sale, ...sales]);
+
       setProducts(products.map(p => {
-        if (p.id === cartItem.id) {
-          const newQuantity = p.quantity - cartItem.quantity;
-          let newStatus = 'En stock';
-          if (newQuantity === 0) newStatus = 'Agotado';
-          else if (newQuantity <= p.minStock) newStatus = 'Stock bajo';
-          return { ...p, quantity: newQuantity, status: newStatus };
-        }
-        return p;
+        const cartItem = cart.find(ci => ci.id === p.id);
+        if (!cartItem) return p;
+
+        const newQuantity = p.quantity - cartItem.quantity;
+        let newStatus = 'En stock';
+        if (newQuantity === 0) newStatus = 'Agotado';
+        else if (newQuantity <= p.minStock) newStatus = 'Stock bajo';
+
+        return { ...p, quantity: newQuantity, status: newStatus };
       }));
-    });
-    setCart([]);
-    setShowSalesModal(false);
-    alert('Venta registrada exitosamente');
+
+      // Vaciar carrito
+      setCart([]);
+      setShowSalesModal(false);
+
+      alert('Venta registrada exitosamente');
+
+    } catch (error) {
+      console.error("Error al registrar venta:", error);
+      alert("Hubo un error al registrar la venta.");
+    }
   };
+
 
   // Calculos
   const totalProducts = products.length;
@@ -264,6 +317,37 @@ export default function ManagementSystem() {
     acc[product.category] += totalSold * product.price;
     return acc;
   }, {});
+
+  // Referencia A La Coleccion de firebase (base de datos)
+  const productsCollection = collection(db, "products");
+
+  useEffect(() => {
+    // Escuchar productos
+    const unsubscribeProducts = onSnapshot(
+      collection(db, "products"),
+      (snapshot) => {
+        setProducts(
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        );
+      }
+    );
+
+    // Escuchar ventas
+    const unsubscribeSales = onSnapshot(
+      collection(db, "sales"),
+      (snapshot) => {
+        setSales(
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        );
+      }
+    );
+
+    return () => {
+      unsubscribeProducts();
+      unsubscribeSales();
+    };
+  }, []);
+
 
   // Login
   if (!isAuthenticated) {
