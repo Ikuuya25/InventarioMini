@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Package, ShoppingCart, TrendingUp, Settings, LogOut, Plus, Search, Edit2, Trash2, Check, X, AlertCircle, Minus, DollarSign, Receipt, BarChart3, Users, Menu, Eye, EyeOff, Box, TrendingDown } from 'lucide-react';
+import { db } from "../firebase";
+import { collection, addDoc, getDocs } from "firebase/firestore";
 
 export default function ManagementSystem() {
   // Autenticación
