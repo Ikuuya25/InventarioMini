@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Package, ShoppingCart, TrendingUp, Settings, LogOut, Plus, Search, Edit2, Trash2, Check, X, AlertCircle, Minus, DollarSign, Receipt, BarChart3, Users, Menu, Eye, EyeOff, Box, TrendingDown } from 'lucide-react';
+import { Package, ShoppingCart, TrendingUp, Settings, LogOut, Plus, Search, Edit2, Trash2, Check, X, AlertCircle, Minus, DollarSign, Receipt, BarChart3, Users, Menu, Eye, EyeOff, Box, TrendingDown, Moon, Sun } from 'lucide-react';
 import { db } from "./firebase";
 import { collection, addDoc, deleteDoc, updateDoc, doc, onSnapshot } from "firebase/firestore";
 
@@ -9,6 +9,11 @@ export default function ManagementSystem() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  
+  // Navegación
+  const [activeSection, setActiveSection] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   
   // Roles-Usuarios
   const users = [
@@ -32,7 +37,7 @@ export default function ManagementSystem() {
       canViewReports: true,
       canViewConfig: true,
       canEditConfig: true,
-      sectionAccess: ['dashboard', 'inventario', 'ventas', 'reportes', 'configuracion']
+      sectionAccess: ['dashboard', 'inventario', 'ventas', 'proveedores', 'reportes', 'configuracion']
     },
     supervisor: {
       canViewProducts: true,
@@ -45,7 +50,7 @@ export default function ManagementSystem() {
       canViewReports: true,
       canViewConfig: true,
       canEditConfig: false,
-      sectionAccess: ['dashboard', 'inventario', 'ventas', 'reportes', 'configuracion']
+      sectionAccess: ['dashboard', 'inventario', 'ventas', 'proveedores', 'reportes', 'configuracion']
     },
     vendedor: {
       canViewProducts: true,
@@ -58,7 +63,7 @@ export default function ManagementSystem() {
       canViewReports: false,
       canViewConfig: false,
       canEditConfig: false,
-      sectionAccess: ['dashboard', 'inventario', 'ventas']
+      sectionAccess: ['dashboard', 'inventario', 'ventas', 'proveedores']
     }
   };
 
@@ -72,9 +77,22 @@ export default function ManagementSystem() {
     return permissions[currentUser.role]?.sectionAccess.includes(section) || false;
   };
 
-  // Navegación
-  const [activeSection, setActiveSection] = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const clpFormatter = new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      minimumFractionDigits: 0
+    });
+
+  const formatCurrency = (amount) => clpFormatter.format(amount);
+
+  // Modo oscuro
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   // Estado productos
   const [products, setProducts] = useState([]);
@@ -83,15 +101,30 @@ export default function ManagementSystem() {
   const [sales, setSales] = useState([]);
   const [cart, setCart] = useState([]);
 
+  // Estado Proveedores
+  const [suppliers, setSuppliers] = useState([
+    { id: 1, name: 'Dell Inc.', contact: 'contacto@dell.com', phone: '+1-800-289-3355', address: 'Round Rock, Texas' },
+    { id: 2, name: 'Logitech', contact: 'ventas@logitech.com', phone: '+1-510-795-8500', address: 'Lausana, Suiza' },
+    { id: 3, name: 'Sony', contact: 'info@sony.com', phone: '+81-3-6748-2111', address: 'Tokio, Japón' },
+    { id: 4, name: 'LG Electronics', contact: 'contact@lge.com', phone: '+82-2-3777-1114', address: 'Seúl, Corea del Sur' },
+    { id: 5, name: 'Corsair', contact: 'support@corsair.com', phone: '+1-888-222-4346', address: 'Fremont, California' }
+  ]);
+
   // Estado Modal
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showSalesModal, setShowSalesModal] = useState(false);
+  const [showAddSupplierModal, setShowAddSupplierModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Formulario productos
   const [newProduct, setNewProduct] = useState({
     name: '', sku: '', quantity: '', minStock: '', price: '', category: 'Electrónica', supplier: ''
+  });
+
+  // Formulario proveedores
+  const [newSupplier, setNewSupplier] = useState({
+    name: '', contact: '', phone: '', address: ''
   });
 
   // Login
@@ -132,7 +165,7 @@ export default function ManagementSystem() {
     else if (product.quantity <= product.minStock) product.status = "Stock bajo";
 
     try {
-      await addDoc(productsCollection, product);
+      await addDoc(collection(db, "products"), product);
     } catch (error) {
       console.error("Error al agregar producto:", error);
     }
@@ -152,7 +185,7 @@ export default function ManagementSystem() {
 
   const handleDeleteProduct = async (id) => {
     if (!hasPermission("canDeleteProducts")) {
-      alert("❌ No tienes permiso para eliminar productos");
+      alert("No tienes permiso para eliminar productos");
       return;
     }
 
@@ -184,6 +217,39 @@ export default function ManagementSystem() {
     }
 
     setEditingProduct(null);
+  };
+
+  const handleAddSupplier = () => {
+    if (!newSupplier.name) {
+      alert('El nombre del proveedor es obligatorio');
+      return;
+    }
+    const supplier = {
+      id: Date.now(),
+      name: newSupplier.name,
+      contact: newSupplier.contact,
+      phone: newSupplier.phone,
+      address: newSupplier.address
+    };
+    setSuppliers([...suppliers, supplier]);
+    setNewSupplier({ name: '', contact: '', phone: '', address: '' });
+    setShowAddSupplierModal(false);
+    alert('Proveedor agregado exitosamente');
+  };
+
+  const handleDeleteSupplier = (supplierId) => {
+    const supplier = suppliers.find(s => s.id === supplierId);
+    const hasProducts = products.some(p => p.supplier === supplier.name);
+    
+    if (hasProducts) {
+      alert('No puedes eliminar este proveedor porque tiene productos asociados');
+      return;
+    }
+    
+    if (window.confirm(`¿Estás seguro de eliminar el proveedor "${supplier.name}"?`)) {
+      setSuppliers(suppliers.filter(s => s.id !== supplierId));
+      alert('Proveedor eliminado');
+    }
   };
 
   // logica carrito
@@ -227,9 +293,7 @@ export default function ManagementSystem() {
       return;
     }
 
-    // Crear venta igual que antes
     const sale = {
-      id: Date.now(),
       date: new Date().toISOString(),
       items: [...cart],
       total: cartTotal,
@@ -237,13 +301,10 @@ export default function ManagementSystem() {
     };
 
     try {
-      // 👉 Guardar venta en Firestore
       await addDoc(collection(db, "sales"), sale);
 
-      // 👉 Actualizar stock en Firestore para cada producto vendido
       for (const cartItem of cart) {
         const productRef = doc(db, "products", cartItem.id);
-
         const newQuantity = cartItem.quantity > 0
           ? (products.find(p => p.id === cartItem.id).quantity - cartItem.quantity)
           : 0;
@@ -259,25 +320,8 @@ export default function ManagementSystem() {
         });
       }
 
-      // 👉 Actualización local (tu UI seguirá funcionando igual)
-      setSales([sale, ...sales]);
-
-      setProducts(products.map(p => {
-        const cartItem = cart.find(ci => ci.id === p.id);
-        if (!cartItem) return p;
-
-        const newQuantity = p.quantity - cartItem.quantity;
-        let newStatus = 'En stock';
-        if (newQuantity === 0) newStatus = 'Agotado';
-        else if (newQuantity <= p.minStock) newStatus = 'Stock bajo';
-
-        return { ...p, quantity: newQuantity, status: newStatus };
-      }));
-
-      // Vaciar carrito
       setCart([]);
       setShowSalesModal(false);
-
       alert('Venta registrada exitosamente');
 
     } catch (error) {
@@ -318,11 +362,8 @@ export default function ManagementSystem() {
     return acc;
   }, {});
 
-  // Referencia A La Coleccion de firebase (base de datos)
-  const productsCollection = collection(db, "products");
-
+  // Firebase listeners
   useEffect(() => {
-    // Escuchar productos
     const unsubscribeProducts = onSnapshot(
       collection(db, "products"),
       (snapshot) => {
@@ -332,7 +373,6 @@ export default function ManagementSystem() {
       }
     );
 
-    // Escuchar ventas
     const unsubscribeSales = onSnapshot(
       collection(db, "sales"),
       (snapshot) => {
@@ -347,7 +387,6 @@ export default function ManagementSystem() {
       unsubscribeSales();
     };
   }, []);
-
 
   // Login
   if (!isAuthenticated) {
@@ -415,21 +454,21 @@ export default function ManagementSystem() {
     );
   }
 
-  // Main
+  // Aplicación
   return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Barra lateral */}
-      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white shadow-lg transition-all duration-300`}>
+    <div className={`flex h-screen ${darkMode ? 'dark' : ''}`}>
+      {/* Sidebar */}
+      <div className={`${sidebarOpen ? 'w-64' : 'w-20'} ${darkMode ? 'bg-gray-900' : 'bg-white'} shadow-lg transition-all duration-300`}>
         <div className="h-full flex flex-col">
-          <div className="p-4 border-b flex items-center justify-between">
+          <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
             {sidebarOpen && (
               <div className="flex items-center space-x-2">
-                <Package className="w-6 h-6 text-indigo-600" />
-                <span className="font-bold text-gray-900">Sistema</span>
+                <Package className={`w-6 h-6 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
+                <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>Sistema</span>
               </div>
             )}
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-gray-100 rounded">
-              <Menu className="w-5 h-5" />
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'} rounded`}>
+              <Menu className={`w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`} />
             </button>
           </div>
           
@@ -438,7 +477,9 @@ export default function ManagementSystem() {
               <button
                 onClick={() => setActiveSection('dashboard')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${
-                  activeSection === 'dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'
+                  activeSection === 'dashboard' 
+                    ? `${darkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-50 text-indigo-600'}` 
+                    : `${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-50'}`
                 }`}
               >
                 <BarChart3 className="w-5 h-5" />
@@ -450,7 +491,9 @@ export default function ManagementSystem() {
               <button
                 onClick={() => setActiveSection('inventario')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${
-                  activeSection === 'inventario' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'
+                  activeSection === 'inventario' 
+                    ? `${darkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-50 text-indigo-600'}` 
+                    : `${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-50'}`
                 }`}
               >
                 <Package className="w-5 h-5" />
@@ -462,7 +505,9 @@ export default function ManagementSystem() {
               <button
                 onClick={() => setActiveSection('ventas')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${
-                  activeSection === 'ventas' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'
+                  activeSection === 'ventas' 
+                    ? `${darkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-50 text-indigo-600'}` 
+                    : `${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-50'}`
                 }`}
               >
                 <ShoppingCart className="w-5 h-5" />
@@ -470,11 +515,27 @@ export default function ManagementSystem() {
               </button>
             )}
             
+            {canAccessSection('proveedores') && (
+              <button
+                onClick={() => setActiveSection('proveedores')}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${
+                  activeSection === 'proveedores' 
+                    ? `${darkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-50 text-indigo-600'}` 
+                    : `${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-50'}`
+                }`}
+              >
+                <Users className="w-5 h-5" />
+                {sidebarOpen && <span className="font-medium">Proveedores</span>}
+              </button>
+            )}
+            
             {canAccessSection('reportes') && (
               <button
                 onClick={() => setActiveSection('reportes')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${
-                  activeSection === 'reportes' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'
+                  activeSection === 'reportes' 
+                    ? `${darkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-50 text-indigo-600'}` 
+                    : `${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-50'}`
                 }`}
               >
                 <TrendingUp className="w-5 h-5" />
@@ -486,7 +547,9 @@ export default function ManagementSystem() {
               <button
                 onClick={() => setActiveSection('configuracion')}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition ${
-                  activeSection === 'configuracion' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-50'
+                  activeSection === 'configuracion' 
+                    ? `${darkMode ? 'bg-indigo-900 text-indigo-300' : 'bg-indigo-50 text-indigo-600'}` 
+                    : `${darkMode ? 'text-gray-300 hover:bg-gray-800' : 'text-gray-700 hover:bg-gray-50'}`
                 }`}
               >
                 <Settings className="w-5 h-5" />
@@ -495,15 +558,25 @@ export default function ManagementSystem() {
             )}
           </nav>
           
-          <div className="p-4 border-t">
+          <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`w-full mb-3 flex items-center justify-center space-x-2 px-4 py-2 rounded-lg transition ${
+                darkMode ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {sidebarOpen && <span className="text-sm font-medium">{darkMode ? 'Modo Claro' : 'Modo Oscuro'}</span>}
+            </button>
+            
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                <Users className="w-5 h-5 text-indigo-600" />
+              <div className={`w-10 h-10 ${darkMode ? 'bg-indigo-900' : 'bg-indigo-100'} rounded-full flex items-center justify-center`}>
+                <Users className={`w-5 h-5 ${darkMode ? 'text-indigo-400' : 'text-indigo-600'}`} />
               </div>
               {sidebarOpen && (
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{currentUser.name}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{currentUser.name}</p>
+                  <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                     {currentUser.role === 'admin' ? 'Administrador' : currentUser.role === 'supervisor' ? '⭐ Supervisor' : '👤 Vendedor'}
                   </p>
                 </div>
@@ -511,7 +584,9 @@ export default function ManagementSystem() {
             </div>
             <button
               onClick={handleLogout}
-              className="w-full mt-3 flex items-center justify-center space-x-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
+              className={`w-full mt-3 flex items-center justify-center space-x-2 px-4 py-2 rounded-lg transition ${
+                darkMode ? 'bg-red-900 text-red-300 hover:bg-red-800' : 'bg-red-50 text-red-600 hover:bg-red-100'
+              }`}
             >
               <LogOut className="w-4 h-4" />
               {sidebarOpen && <span className="text-sm font-medium">Cerrar Sesión</span>}
@@ -520,22 +595,24 @@ export default function ManagementSystem() {
         </div>
       </div>
 
-      {/* Contenido principal */}
-      <div className="flex-1 overflow-auto">
-        <div className="bg-white shadow-sm border-b px-8 py-4">
+      {/* Main Content */}
+      <div className={`flex-1 overflow-auto ${darkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+        <div className={`${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white'} shadow-sm border-b px-8 py-4`}>
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                 {activeSection === 'dashboard' && 'Dashboard'}
                 {activeSection === 'inventario' && 'Gestión de Inventario'}
                 {activeSection === 'ventas' && 'Ventas'}
+                {activeSection === 'proveedores' && 'Proveedores'}
                 {activeSection === 'reportes' && 'Reportes y Estadísticas'}
                 {activeSection === 'configuracion' && 'Configuración'}
               </h1>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>
                 {activeSection === 'dashboard' && 'Resumen general de tu negocio'}
                 {activeSection === 'inventario' && 'Administra tu catálogo de productos'}
                 {activeSection === 'ventas' && 'Registra y consulta ventas'}
+                {activeSection === 'proveedores' && 'Gestión de proveedores y sus productos'}
                 {activeSection === 'reportes' && 'Análisis detallado de tu negocio'}
                 {activeSection === 'configuracion' && 'Ajustes del sistema'}
               </p>
@@ -545,7 +622,7 @@ export default function ManagementSystem() {
               <button
                 onClick={() => {
                   if (!hasPermission('canAddProducts')) {
-                    alert('❌ No tienes permiso para agregar productos');
+                    alert('No tienes permiso para agregar productos');
                     return;
                   }
                   setShowAddProductModal(true);
@@ -561,7 +638,7 @@ export default function ManagementSystem() {
               <button
                 onClick={() => {
                   if (!hasPermission('canMakeSales')) {
-                    alert('❌ No tienes permiso para realizar ventas');
+                    alert('No tienes permiso para realizar ventas');
                     return;
                   }
                   setShowSalesModal(true);
@@ -570,6 +647,22 @@ export default function ManagementSystem() {
               >
                 <ShoppingCart className="w-5 h-5" />
                 <span>Nueva Venta ({cart.length})</span>
+              </button>
+            )}
+
+            {activeSection === 'proveedores' && (
+              <button
+                onClick={() => {
+                  if (!hasPermission('canAddProducts')) {
+                    alert('No tienes permiso para agregar proveedores');
+                    return;
+                  }
+                  setShowAddSupplierModal(true);
+                }}
+                className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Nuevo Proveedor</span>
               </button>
             )}
           </div>
@@ -587,13 +680,13 @@ export default function ManagementSystem() {
                 </div>
                 <div className="bg-white p-6 rounded-lg shadow">
                   <div className="flex items-center justify-between">
-                    <div><p className="text-sm text-gray-600">Valor Inventario</p><p className="text-2xl font-bold text-gray-900">${totalValue.toFixed(2)}</p></div>
+                    <div><p className="text-sm text-gray-600">Valor Inventario</p><p className="text-2xl font-bold text-gray-900">{formatCurrency(totalValue)}</p></div>
                     <DollarSign className="w-10 h-10 text-green-600" />
                   </div>
                 </div>
                 <div className="bg-white p-6 rounded-lg shadow">
                   <div className="flex items-center justify-between">
-                    <div><p className="text-sm text-gray-600">Ventas Totales</p><p className="text-2xl font-bold text-green-600">${totalSales.toFixed(2)}</p></div>
+                    <div><p className="text-sm text-gray-600">Ventas Totales</p><p className="text-2xl font-bold text-green-600">{formatCurrency(totalSales)}</p></div>
                     <TrendingUp className="w-10 h-10 text-green-600" />
                   </div>
                 </div>
@@ -636,7 +729,7 @@ export default function ManagementSystem() {
                           <p className="font-medium text-gray-900">Venta #{sale.id}</p>
                           <p className="text-xs text-gray-500">{new Date(sale.date).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
-                        <span className="text-green-600 font-semibold">${sale.total.toFixed(2)}</span>
+                        <span className="text-green-600 font-semibold">{formatCurrency(sale.total)}</span>
                       </div>
                     ))}
                     {sales.length === 0 && (
@@ -739,7 +832,7 @@ export default function ManagementSystem() {
                             <td className="px-6 py-4"><div className="text-sm text-gray-500">{product.category}</div></td>
                             <td className="px-6 py-4"><div className="text-sm text-gray-500">{product.supplier}</div></td>
                             <td className="px-6 py-4"><div className="text-sm text-gray-900">{product.quantity}</div></td>
-                            <td className="px-6 py-4"><div className="text-sm text-gray-900">${product.price.toFixed(2)}</div></td>
+                            <td className="px-6 py-4"><div className="text-sm text-gray-900">{formatCurrency(product.price)}</div></td>
                             <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)}`}>{product.status}</span></td>
                             <td className="px-6 py-4">
                               <div className="flex space-x-3">
@@ -754,7 +847,7 @@ export default function ManagementSystem() {
                                   </button>
                                 ) : (
                                   <button 
-                                    onClick={() => alert('❌ No tienes permiso para eliminar productos')} 
+                                    onClick={() => alert('No tienes permiso para eliminar productos')} 
                                     className="text-gray-400 cursor-not-allowed"
                                   >
                                     <Trash2 className="w-5 h-5" />
@@ -783,19 +876,19 @@ export default function ManagementSystem() {
                 </div>
                 <div className="bg-white p-6 rounded-lg shadow">
                   <div className="flex items-center justify-between">
-                    <div><p className="text-sm text-gray-600">Ingresos Totales</p><p className="text-2xl font-bold text-green-600">${totalSales.toFixed(2)}</p></div>
+                    <div><p className="text-sm text-gray-600">Ingresos Totales</p><p className="text-2xl font-bold text-green-600">{formatCurrency(totalSales)}</p></div>
                     <DollarSign className="w-10 h-10 text-green-600" />
                   </div>
                 </div>
                 <div className="bg-white p-6 rounded-lg shadow">
                   <div className="flex items-center justify-between">
-                    <div><p className="text-sm text-gray-600">Promedio Venta</p><p className="text-2xl font-bold text-blue-600">${totalSalesCount > 0 ? (totalSales / totalSalesCount).toFixed(2) : '0.00'}</p></div>
+                    <div><p className="text-sm text-gray-600">Promedio Venta</p><p className="text-2xl font-bold text-blue-600">{formatCurrency(totalSalesCount > 0 ? (totalSales / totalSalesCount) : 0)}</p></div>
                     <TrendingUp className="w-10 h-10 text-blue-600" />
                   </div>
                 </div>
                 <div className="bg-white p-6 rounded-lg shadow">
                   <div className="flex items-center justify-between">
-                    <div><p className="text-sm text-gray-600">Carrito Actual</p><p className="text-2xl font-bold text-purple-600">${cartTotal.toFixed(2)}</p></div>
+                    <div><p className="text-sm text-gray-600">Carrito Actual</p><p className="text-2xl font-bold text-purple-600">{formatCurrency(cartTotal)}</p></div>
                     <ShoppingCart className="w-10 h-10 text-purple-600" />
                   </div>
                 </div>
@@ -822,19 +915,187 @@ export default function ManagementSystem() {
                           </div>
                           <div className="text-right">
                             <p className="text-sm text-gray-500">Total</p>
-                            <p className="text-2xl font-bold text-green-600">${sale.total.toFixed(2)}</p>
+                            <p className="text-2xl font-bold text-green-600">{formatCurrency(sale.total)}</p>
                           </div>
                         </div>
                         <div className="space-y-2">
-                          {sale.items.map((item) => (
-                            <div key={item.id} className="flex justify-between text-sm">
+                          {sale.items.map((item, idx) => (
+                            <div key={`${sale.id}-${idx}`} className="flex justify-between text-sm">
                               <span className="text-gray-700">{item.name} <span className="text-gray-500">x{item.quantity}</span></span>
-                              <span className="text-gray-900 font-medium">${(item.price * item.quantity).toFixed(2)}</span>
+                              <span className="text-gray-900 font-medium">{formatCurrency(item.price * item.quantity)}</span>
                             </div>
                           ))}
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {activeSection === 'proveedores' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Proveedores</p>
+                      <p className="text-2xl font-bold text-gray-900">{suppliers.length}</p>
+                    </div>
+                    <Users className="w-10 h-10 text-indigo-600" />
+                  </div>
+                </div>
+                
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Productos Total</p>
+                      <p className="text-2xl font-bold text-gray-900">{products.length}</p>
+                    </div>
+                    <Package className="w-10 h-10 text-green-600" />
+                  </div>
+                </div>
+                
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">Con Productos</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {suppliers.filter(s => products.some(p => p.supplier === s.name)).length}
+                      </p>
+                    </div>
+                    <TrendingUp className="w-10 h-10 text-blue-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {suppliers.map((supplier) => {
+                  const supplierProducts = products.filter(p => p.supplier === supplier.name);
+                  const totalValue = supplierProducts.reduce((sum, p) => sum + (p.quantity * p.price), 0);
+                  const totalStock = supplierProducts.reduce((sum, p) => sum + p.quantity, 0);
+                  
+                  return (
+                    <div key={supplier.id} className="bg-white rounded-lg shadow overflow-hidden">
+                      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3">
+                              <h3 className="text-xl font-bold text-white">{supplier.name}</h3>
+                              {hasPermission('canDeleteProducts') && (
+                                <button
+                                  onClick={() => handleDeleteSupplier(supplier.id)}
+                                  className="p-1 hover:bg-white/20 rounded transition"
+                                  title="Eliminar proveedor"
+                                >
+                                  <Trash2 className="w-4 h-4 text-white" />
+                                </button>
+                              )}
+                            </div>
+                            <div className="mt-2 space-y-1">
+                              {supplier.contact && (
+                                <p className="text-indigo-100 text-sm">📧 {supplier.contact}</p>
+                              )}
+                              {supplier.phone && (
+                                <p className="text-indigo-100 text-sm">📞 {supplier.phone}</p>
+                              )}
+                              {supplier.address && (
+                                <p className="text-indigo-100 text-sm">📍 {supplier.address}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-indigo-100">Valor en Stock</p>
+                            <p className="text-2xl font-bold text-white">{formatCurrency(totalValue)}</p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {supplierProducts.length > 0 ? (
+                        <div className="p-6">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
+                              <Package className="w-8 h-8 text-blue-600" />
+                              <div>
+                                <p className="text-xs text-gray-600">Productos</p>
+                                <p className="text-lg font-bold text-gray-900">{supplierProducts.length}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
+                              <Box className="w-8 h-8 text-green-600" />
+                              <div>
+                                <p className="text-xs text-gray-600">Stock Total</p>
+                                <p className="text-lg font-bold text-gray-900">{totalStock}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-3 p-3 bg-purple-50 rounded-lg">
+                              <DollarSign className="w-8 h-8 text-purple-600" />
+                              <div>
+                                <p className="text-xs text-gray-600">Valor Promedio</p>
+                                <p className="text-lg font-bold text-gray-900">
+                                  {formatCurrency(supplierProducts.reduce((sum, p) => sum + p.price, 0) / supplierProducts.length)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
+                                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {supplierProducts.map((product) => (
+                                  <tr key={product.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-3">
+                                      <div className="text-sm font-medium text-gray-900">{product.name}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="text-sm text-gray-500">{product.sku}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="text-sm text-gray-500">{product.category}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="text-sm text-gray-900">{product.quantity}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="text-sm font-medium text-gray-900">{formatCurrency(product.price)}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)}`}>
+                                        {product.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-6 text-center">
+                          <Package className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                          <p className="text-gray-500 text-sm">No hay productos de este proveedor</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                
+                {suppliers.length === 0 && (
+                  <div className="bg-white rounded-lg shadow p-12 text-center">
+                    <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay proveedores registrados</h3>
+                    <p className="text-gray-600">Haz clic en "Nuevo Proveedor" para comenzar</p>
                   </div>
                 )}
               </div>
@@ -851,12 +1112,12 @@ export default function ManagementSystem() {
                 </div>
                 <div className="bg-white p-6 rounded-lg shadow">
                   <h3 className="text-sm font-medium text-gray-600 mb-2">Valor Inventario</h3>
-                  <p className="text-3xl font-bold text-green-600">${totalValue.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-green-600">{formatCurrency(totalValue)}</p>
                   <p className="text-sm text-gray-500 mt-2">Total en stock</p>
                 </div>
                 <div className="bg-white p-6 rounded-lg shadow">
                   <h3 className="text-sm font-medium text-gray-600 mb-2">Ingresos por Ventas</h3>
-                  <p className="text-3xl font-bold text-blue-600">${totalSales.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-blue-600">{formatCurrency(totalSales)}</p>
                   <p className="text-sm text-gray-500 mt-2">Total vendido</p>
                 </div>
               </div>
@@ -869,7 +1130,7 @@ export default function ManagementSystem() {
                       <div key={category}>
                         <div className="flex justify-between mb-1">
                           <span className="text-sm font-medium text-gray-700">{category}</span>
-                          <span className="text-sm font-semibold text-gray-900">${amount.toFixed(2)}</span>
+                          <span className="text-sm font-semibold text-gray-900">{formatCurrency(amount)}</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${totalSales > 0 ? (amount / totalSales) * 100 : 0}%` }}></div>
@@ -897,7 +1158,7 @@ export default function ManagementSystem() {
                             <p className="text-sm text-gray-500">Vendidos: {product.sold}</p>
                           </div>
                         </div>
-                        <span className="text-sm font-semibold text-green-600">${(product.sold * product.price).toFixed(2)}</span>
+                        <span className="text-sm font-semibold text-green-600">{formatCurrency(product.sold * product.price)}</span>
                       </div>
                     ))}
                     {products.filter(p => sales.flatMap(s => s.items).some(item => item.id === p.id)).length === 0 && (
@@ -936,7 +1197,7 @@ export default function ManagementSystem() {
                       </div>
                       <div className="flex justify-between items-center p-2 bg-green-50 rounded">
                         <span className="text-sm text-gray-700">Ticket Promedio</span>
-                        <span className="font-semibold text-green-700">${totalSalesCount > 0 ? (totalSales / totalSalesCount).toFixed(2) : '0.00'}</span>
+                        <span className="font-semibold text-green-700">{formatCurrency(totalSalesCount > 0 ? (totalSales / totalSalesCount) : 0)}</span>
                       </div>
                       <div className="flex justify-between items-center p-2 bg-purple-50 rounded">
                         <span className="text-sm text-gray-700">Productos Vendidos</span>
@@ -1049,7 +1310,7 @@ export default function ManagementSystem() {
                   </button>
                 ) : (
                   <button 
-                    onClick={() => alert('❌ No tienes permiso para modificar la configuración del sistema')}
+                    onClick={() => alert('No tienes permiso para modificar la configuración del sistema')}
                     className="px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
                   >
                     Restablecer Sistema (Bloqueado)
@@ -1061,6 +1322,7 @@ export default function ManagementSystem() {
         </div>
       </div>
 
+      {/* Modal Agregar Producto */}
       {showAddProductModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
@@ -1109,6 +1371,7 @@ export default function ManagementSystem() {
         </div>
       )}
 
+      {/* Modal Ventas */}
       {showSalesModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
@@ -1121,7 +1384,7 @@ export default function ManagementSystem() {
                     <div key={product.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex-1">
                         <p className="font-medium text-sm">{product.name}</p>
-                        <p className="text-xs text-gray-500">Stock: {product.quantity} | ${product.price.toFixed(2)}</p>
+                        <p className="text-xs text-gray-500">Stock: {product.quantity} | {formatCurrency(product.price)}</p>
                       </div>
                       <button onClick={() => addToCart(product)} className="ml-2 bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700">
                         <Plus className="w-4 h-4" />
@@ -1144,7 +1407,7 @@ export default function ManagementSystem() {
                         <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                           <div className="flex-1">
                             <p className="font-medium text-sm">{item.name}</p>
-                            <p className="text-xs text-gray-500">${item.price.toFixed(2)} c/u</p>
+                            <p className="text-xs text-gray-500">{formatCurrency(item.price)} c/u</p>
                           </div>
                           <div className="flex items-center space-x-2">
                             <button onClick={() => updateCartQuantity(item.id, item.quantity - 1)} className="bg-gray-200 p-1 rounded hover:bg-gray-300">
@@ -1164,7 +1427,7 @@ export default function ManagementSystem() {
                     <div className="border-t pt-4">
                       <div className="flex justify-between items-center mb-4">
                         <span className="text-lg font-bold">Total:</span>
-                        <span className="text-2xl font-bold text-green-600">${cartTotal.toFixed(2)}</span>
+                        <span className="text-2xl font-bold text-green-600">{formatCurrency(cartTotal)}</span>
                       </div>
                     </div>
                   </>
@@ -1176,6 +1439,81 @@ export default function ManagementSystem() {
                 Completar Venta
               </button>
               <button onClick={() => setShowSalesModal(false)} className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Agregar Proveedor */}
+      {showAddSupplierModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h2 className="text-xl font-bold mb-4">Agregar Nuevo Proveedor</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nombre del Proveedor <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newSupplier.name}
+                  onChange={(e) => setNewSupplier({...newSupplier, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  placeholder="Ej: Apple Inc."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email de Contacto</label>
+                <input
+                  type="email"
+                  value={newSupplier.contact}
+                  onChange={(e) => setNewSupplier({...newSupplier, contact: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  placeholder="Ej: contacto@proveedor.com"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                <input
+                  type="tel"
+                  value={newSupplier.phone}
+                  onChange={(e) => setNewSupplier({...newSupplier, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  placeholder="Ej: +56 9 1234 5678"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                <input
+                  type="text"
+                  value={newSupplier.address}
+                  onChange={(e) => setNewSupplier({...newSupplier, address: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  placeholder="Ej: Santiago, Chile"
+                />
+              </div>
+            </div>
+            
+            <div className="flex space-x-3 mt-6">
+              <button
+                onClick={handleAddSupplier}
+                className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
+              >
+                Agregar
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddSupplierModal(false);
+                  setNewSupplier({ name: '', contact: '', phone: '', address: '' });
+                }}
+                className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
