@@ -22,6 +22,8 @@ export default function ManagementSystem() {
     { id: 3, username: 'supervisor', password: 'super123', name: 'Supervisor', role: 'supervisor' }
   ];
 
+  
+
   // Sistema de permisos
   const permissions = {
     admin: {
@@ -327,6 +329,7 @@ export default function ManagementSystem() {
       alert("Hubo un error al registrar la venta.");
     }
   };
+
 
   // Calculos
   const totalProducts = products.length;
@@ -635,7 +638,7 @@ export default function ManagementSystem() {
               <button
                 onClick={() => {
                   if (!hasPermission('canMakeSales')) {
-                    alert('❌ No tienes permiso para realizar ventas');
+                    alert('No tienes permiso para realizar ventas');
                     return;
                   }
                   setShowSalesModal(true);
@@ -651,7 +654,7 @@ export default function ManagementSystem() {
               <button
                 onClick={() => {
                   if (!hasPermission('canAddProducts')) {
-                    alert('❌ No tienes permiso para agregar proveedores');
+                    alert('No tienes permiso para agregar proveedores');
                     return;
                   }
                   setShowAddSupplierModal(true);
@@ -844,7 +847,7 @@ export default function ManagementSystem() {
                                   </button>
                                 ) : (
                                   <button 
-                                    onClick={() => alert('❌ No tienes permiso para eliminar productos')} 
+                                    onClick={() => alert('No tienes permiso para eliminar productos')} 
                                     className="text-gray-400 cursor-not-allowed"
                                   >
                                     <Trash2 className="w-5 h-5" />
