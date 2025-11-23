@@ -98,15 +98,45 @@ export default function ManagementSystem() {
   // Estado venta
   const [sales, setSales] = useState([]);
   const [cart, setCart] = useState([]);
+  
 
   // Estado Proveedores
-  const [suppliers, setSuppliers] = useState([
-    { id: 1, name: 'Dell Inc.', contact: 'contacto@dell.com', phone: '+1-800-289-3355', address: 'Round Rock, Texas' },
-    { id: 2, name: 'Logitech', contact: 'ventas@logitech.com', phone: '+1-510-795-8500', address: 'Lausana, Suiza' },
-    { id: 3, name: 'Sony', contact: 'info@sony.com', phone: '+81-3-6748-2111', address: 'Tokio, Japón' },
-    { id: 4, name: 'LG Electronics', contact: 'contact@lge.com', phone: '+82-2-3777-1114', address: 'Seúl, Corea del Sur' },
-    { id: 5, name: 'Corsair', contact: 'support@corsair.com', phone: '+1-888-222-4346', address: 'Fremont, California' }
-  ]);
+  const [suppliers, setSuppliers] = useState([]);
+  useEffect(() => {
+  const unsubscribeProducts = onSnapshot(
+    collection(db, "products"),
+    (snapshot) => {
+      setProducts(
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
+    }
+  );
+
+  const unsubscribeSales = onSnapshot(
+    collection(db, "sales"),
+    (snapshot) => {
+      setSales(
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
+    }
+  );
+
+  // Listener para proveedores
+  const unsubscribeSuppliers = onSnapshot(
+    collection(db, "suppliers"),
+    (snapshot) => {
+      setSuppliers(
+        snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
+    }
+  );
+
+  return () => {
+    unsubscribeProducts();
+    unsubscribeSales();
+    unsubscribeSuppliers();
+  };
+}, []);
 
   // Estado Modal
   const [showAddProductModal, setShowAddProductModal] = useState(false);
@@ -174,7 +204,7 @@ export default function ManagementSystem() {
       quantity: "",
       minStock: "",
       price: "",
-      category: "Electrónica",
+      category: "",
       supplier: ""
     });
 
@@ -217,38 +247,49 @@ export default function ManagementSystem() {
     setEditingProduct(null);
   };
 
-  const handleAddSupplier = () => {
+  const handleAddSupplier = async () => {
     if (!newSupplier.name) {
       alert('El nombre del proveedor es obligatorio');
       return;
     }
-    const supplier = {
-      id: Date.now(),
-      name: newSupplier.name,
-      contact: newSupplier.contact,
-      phone: newSupplier.phone,
-      address: newSupplier.address
-    };
-    setSuppliers([...suppliers, supplier]);
-    setNewSupplier({ name: '', contact: '', phone: '', address: '' });
-    setShowAddSupplierModal(false);
-    alert('Proveedor agregado exitosamente');
+    
+    try {
+      await addDoc(collection(db, "suppliers"), {
+        name: newSupplier.name,
+        contact: newSupplier.contact || '',
+        phone: newSupplier.phone || '',
+        address: newSupplier.address || ''
+      });
+      
+      setNewSupplier({ name: '', contact: '', phone: '', address: '' });
+      setShowAddSupplierModal(false);
+      alert('Proveedor agregado exitosamente');
+    } catch (error) {
+      console.error("Error al agregar proveedor:", error);
+      alert("Hubo un error al agregar el proveedor");
+    }
   };
 
-  const handleDeleteSupplier = (supplierId) => {
+  const handleDeleteSupplier = async (supplierId) => {
     const supplier = suppliers.find(s => s.id === supplierId);
     const hasProducts = products.some(p => p.supplier === supplier.name);
     
     if (hasProducts) {
-      alert('No puedes eliminar este proveedor porque tiene productos asociados');
+      alert('❌ No puedes eliminar este proveedor porque tiene productos asociados');
       return;
     }
     
     if (window.confirm(`¿Estás seguro de eliminar el proveedor "${supplier.name}"?`)) {
-      setSuppliers(suppliers.filter(s => s.id !== supplierId));
-      alert('Proveedor eliminado');
+      try {
+        await deleteDoc(doc(db, "suppliers", supplierId));
+        alert('🗑️ Proveedor eliminado exitosamente');
+      } catch (error) {
+        console.error("Error al eliminar proveedor:", error);
+        alert("❌ Hubo un error al eliminar el proveedor");
+      }
     }
   };
+  const [editingSupplier, setEditingSupplier] = useState(null);
 
   // logica carrito
   const addToCart = (product) => {
@@ -384,6 +425,46 @@ export default function ManagementSystem() {
       unsubscribeSales();
     };
   }, []);
+  const handleEditSupplier = (supplier) => {
+  setEditingSupplier({ ...supplier });
+};
+
+const handleSaveSupplierEdit = async () => {
+  if (!editingSupplier.name) {
+    alert('El nombre del proveedor es obligatorio');
+    return;
+  }
+
+  try {
+    const supplierRef = doc(db, "suppliers", editingSupplier.id);
+    
+    // Si cambió el nombre, actualizar también los productos asociados
+    const oldSupplier = suppliers.find(s => s.id === editingSupplier.id);
+    if (oldSupplier.name !== editingSupplier.name) {
+      const productsToUpdate = products.filter(p => p.supplier === oldSupplier.name);
+      
+      for (const product of productsToUpdate) {
+        await updateDoc(doc(db, "products", product.id), {
+          supplier: editingSupplier.name
+        });
+      }
+    }
+    
+    // Actualizar el proveedor
+    await updateDoc(supplierRef, {
+      name: editingSupplier.name,
+      contact: editingSupplier.contact || '',
+      phone: editingSupplier.phone || '',
+      address: editingSupplier.address || ''
+    });
+    
+    setEditingSupplier(null);
+    alert('Proveedor actualizado exitosamente');
+  } catch (error) {
+    console.error("Error al actualizar proveedor:", error);
+    alert("Hubo un error al actualizar el proveedor");
+  }
+};
 
   // Login
   if (!isAuthenticated) {
@@ -980,6 +1061,15 @@ export default function ManagementSystem() {
                           <div className="flex-1">
                             <div className="flex items-center space-x-3">
                               <h3 className="text-xl font-bold text-white">{supplier.name}</h3>
+                              {hasPermission('canEditProducts') && (
+                                <button
+                                  onClick={() => setEditingSupplier({ ...supplier })}
+                                  className="p-1.5 bg-white/20 hover:bg-white/30 rounded transition"
+                                  title="Editar proveedor"
+                                >
+                                  <Edit2 className="w-4 h-4 text-white" />
+                                </button>
+                              )}
                               {hasPermission('canDeleteProducts') && (
                                 <button
                                   onClick={() => handleDeleteSupplier(supplier.id)}
@@ -990,6 +1080,69 @@ export default function ManagementSystem() {
                                 </button>
                               )}
                             </div>
+                              {editingSupplier?.id === supplier.id && (
+                                <div className="bg-blue-50 p-6 border-t">
+                                  <h4 className="text-lg font-semibold text-blue-900 mb-4">✏️ Editando Proveedor</h4>
+                                  <div className="space-y-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Nombre <span className="text-red-500">*</span>
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={editingSupplier.name}
+                                        onChange={(e) => setEditingSupplier({...editingSupplier, name: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                        <input
+                                          type="email"
+                                          value={editingSupplier.contact || ''}
+                                          onChange={(e) => setEditingSupplier({...editingSupplier, contact: e.target.value})}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                                        <input
+                                          type="tel"
+                                          value={editingSupplier.phone || ''}
+                                          onChange={(e) => setEditingSupplier({...editingSupplier, phone: e.target.value})}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        />
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                                      <input
+                                        type="text"
+                                        value={editingSupplier.address || ''}
+                                        onChange={(e) => setEditingSupplier({...editingSupplier, address: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div className="flex space-x-3">
+                                      <button
+                                        onClick={handleSaveSupplierEdit}
+                                        className="flex-1 flex items-center justify-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                                      >
+                                        <Check className="w-4 h-4" />
+                                        <span>Guardar</span>
+                                      </button>
+                                      <button
+                                        onClick={() => setEditingSupplier(null)}
+                                        className="flex-1 flex items-center justify-center space-x-2 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition"
+                                      >
+                                        <X className="w-4 h-4" />
+                                        <span>Cancelar</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             <div className="mt-2 space-y-1">
                               {supplier.contact && (
                                 <p className="text-indigo-100 text-sm">📧 {supplier.contact}</p>
