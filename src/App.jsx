@@ -847,6 +847,8 @@ export default function ManagementSystem() {
                                 <option>Bebidas</option>
                                 <option>Lácteos y Fiambres</option>
                                 <option>Panadería y Pastelería</option>
+                                <option>Snacks y Dulces</option>
+                                <option>Abarrotes</option>
                               </select>
                             </td>
                             <td className="px-6 py-4">
@@ -1360,6 +1362,14 @@ export default function ManagementSystem() {
                     <span className="text-gray-700">Panadería y Pastelería</span>
                     <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Panadería y Pastelería').length} productos</span>
                   </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Snacks y Dulces</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Snacks y Dulces').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Abarrotes</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Abarrotes').length} productos</span>
+                  </div>
                 </div>
               </div>
 
@@ -1421,6 +1431,8 @@ export default function ManagementSystem() {
                   <option>Bebidas</option>
                   <option>Lácteos y Fiambres</option>
                   <option>Panadería y Pastelería</option>
+                  <option>Snacks y Dulces</option>
+                  <option>Abarrotes</option>
                 </select>
               </div>
               <div>
