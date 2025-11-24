@@ -102,14 +102,8 @@ export default function ManagementSystem() {
   const [cart, setCart] = useState([]);
 
   // Estado Proveedores
-  const [suppliers, setSuppliers] = useState([
-    { id: 1, name: 'Dell Inc.', contact: 'contacto@dell.com', phone: '+1-800-289-3355', address: 'Round Rock, Texas' },
-    { id: 2, name: 'Logitech', contact: 'ventas@logitech.com', phone: '+1-510-795-8500', address: 'Lausana, Suiza' },
-    { id: 3, name: 'Sony', contact: 'info@sony.com', phone: '+81-3-6748-2111', address: 'Tokio, Japón' },
-    { id: 4, name: 'LG Electronics', contact: 'contact@lge.com', phone: '+82-2-3777-1114', address: 'Seúl, Corea del Sur' },
-    { id: 5, name: 'Corsair', contact: 'support@corsair.com', phone: '+1-888-222-4346', address: 'Fremont, California' }
-  ]);
-
+  const [suppliers, setSuppliers] = useState([]);
+  
   // Estado Modal
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [showSalesModal, setShowSalesModal] = useState(false);
@@ -219,38 +213,71 @@ export default function ManagementSystem() {
     setEditingProduct(null);
   };
 
-  const handleAddSupplier = () => {
+  const handleAddSupplier = async () => {
     if (!newSupplier.name) {
       alert('El nombre del proveedor es obligatorio');
       return;
     }
-    const supplier = {
-      id: Date.now(),
-      name: newSupplier.name,
-      contact: newSupplier.contact,
-      phone: newSupplier.phone,
-      address: newSupplier.address
-    };
-    setSuppliers([...suppliers, supplier]);
-    setNewSupplier({ name: '', contact: '', phone: '', address: '' });
-    setShowAddSupplierModal(false);
-    alert('Proveedor agregado exitosamente');
+
+    try {
+      // Agregar proveedor a Firebase
+      const docRef = await addDoc(collection(db, "suppliers"), {
+        name: newSupplier.name,
+        contact: newSupplier.contact,
+        phone: newSupplier.phone,
+        address: newSupplier.address
+      });
+
+      // Mantener tu estado local actualizado
+      const supplier = {
+        id: docRef.id, // ahora usamos ID de Firestore
+        name: newSupplier.name,
+        contact: newSupplier.contact,
+        phone: newSupplier.phone,
+        address: newSupplier.address
+      };
+
+      setSuppliers([...suppliers, supplier]);
+      setNewSupplier({ name: '', contact: '', phone: '', address: '' });
+      setShowAddSupplierModal(false);
+
+      alert('Proveedor agregado exitosamente');
+
+    } catch (error) {
+      console.error("Error agregando proveedor:", error);
+      alert("Hubo un error al agregar el proveedor");
+    }
   };
 
-  const handleDeleteSupplier = (supplierId) => {
+
+  const handleDeleteSupplier = async (supplierId) => {
     const supplier = suppliers.find(s => s.id === supplierId);
     const hasProducts = products.some(p => p.supplier === supplier.name);
-    
+
     if (hasProducts) {
       alert('No puedes eliminar este proveedor porque tiene productos asociados');
       return;
     }
-    
-    if (window.confirm(`¿Estás seguro de eliminar el proveedor "${supplier.name}"?`)) {
+
+    if (!window.confirm(`¿Estás seguro de eliminar el proveedor "${supplier.name}"?`)) {
+      return;
+    }
+
+    try {
+      // Eliminar en Firebase
+      await deleteDoc(doc(db, "suppliers", supplierId));
+
+      // Eliminar en tu estado local
       setSuppliers(suppliers.filter(s => s.id !== supplierId));
+
       alert('Proveedor eliminado');
+
+    } catch (error) {
+      console.error("Error eliminando proveedor:", error);
+      alert("Hubo un error al eliminar el proveedor");
     }
   };
+
 
   // logica carrito
   const addToCart = (product) => {
@@ -382,9 +409,22 @@ export default function ManagementSystem() {
       }
     );
 
+    const unsubscribeSuppliers = onSnapshot(
+      collection(db, "suppliers"),
+      (snapshot) => {
+        const firebaseSuppliers = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        setSuppliers(firebaseSuppliers);
+      }
+    );
+
     return () => {
       unsubscribeProducts();
       unsubscribeSales();
+      unsubscribeSuppliers();
     };
   }, []);
 
@@ -804,10 +844,22 @@ export default function ManagementSystem() {
                                 <option>Electrónica</option>
                                 <option>Accesorios</option>
                                 <option>Audio</option>
+                                <option>Bebidas</option>
+                                <option>Lácteos y Fiambres</option>
+                                <option>Panadería y Pastelería</option>
+                                <option>Snacks y Dulces</option>
+                                <option>Abarrotes</option>
                               </select>
                             </td>
                             <td className="px-6 py-4">
-                              <input type="text" value={editingProduct.supplier} onChange={(e) => setEditingProduct({...editingProduct, supplier: e.target.value})} className="w-full px-2 py-1 border rounded" />
+                              <select type="text" value={editingProduct.supplier} onChange={(e) => setEditingProduct({...editingProduct, supplier: e.target.value})} className="w-full px-2 py-1 border rounded">
+                                <option value="">Seleccionar proveedor…</option>
+                                  {suppliers.map(supplier => 
+                                    <option key={supplier.id} value={supplier.name}>
+                                      {supplier.name}
+                                    </option>
+                                  )}
+                              </select>
                             </td>
                             <td className="px-6 py-4">
                               <input type="number" value={editingProduct.quantity} onChange={(e) => setEditingProduct({...editingProduct, quantity: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded" />
@@ -1298,6 +1350,26 @@ export default function ManagementSystem() {
                     <span className="text-gray-700">Audio</span>
                     <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Audio').length} productos</span>
                   </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Bebidas</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Bebidas').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Lácteos y Fiambres</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Lácteos y Fiambres').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Panadería y Pastelería</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Panadería y Pastelería').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Snacks y Dulces</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Snacks y Dulces').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Abarrotes</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Abarrotes').length} productos</span>
+                  </div>
                 </div>
               </div>
 
@@ -1356,11 +1428,23 @@ export default function ManagementSystem() {
                   <option>Electrónica</option>
                   <option>Accesorios</option>
                   <option>Audio</option>
+                  <option>Bebidas</option>
+                  <option>Lácteos y Fiambres</option>
+                  <option>Panadería y Pastelería</option>
+                  <option>Snacks y Dulces</option>
+                  <option>Abarrotes</option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-                <input type="text" value={newProduct.supplier} onChange={(e) => setNewProduct({...newProduct, supplier: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Ej: Samsung" />
+                <select value={newProduct.supplier} onChange={(e) => setNewProduct({...newProduct, supplier: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Ej: Samsung" >
+                  <option value="">Seleccionar proveedor…</option>
+                  {suppliers.map(supplier => 
+                    <option key={supplier.id} value={supplier.name}>
+                      {supplier.name}
+                    </option>
+                  )}
+                </select>
               </div>
             </div>
             <div className="flex space-x-3 mt-6">
