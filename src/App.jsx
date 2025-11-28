@@ -144,24 +144,33 @@ export default function ManagementSystem() {
   const handleAddProduct = async () => {
     if (!newProduct.name || !newProduct.sku) return;
 
+    const basePrice = parseFloat(newProduct.price) || 0;
+
+    const priceWithIVA = basePrice * 1.19; 
+    const priceWithIncrease = priceWithIVA * 1.40; 
+
     const product = {
       name: newProduct.name,
       sku: newProduct.sku,
       quantity: parseInt(newProduct.quantity) || 0,
       minStock: parseInt(newProduct.minStock) || 0,
-      price: parseFloat(newProduct.price) || 0,
+      price: basePrice,
+      priceIVA: priceWithIVA,
+      price40: priceWithIncrease,
+      finalPrice: "", 
       category: newProduct.category,
       supplier: newProduct.supplier,
-      status: "En stock"
+      status: "En stock",
     };
 
+    // Actualizar estado según stock
     if (product.quantity === 0) product.status = "Agotado";
     else if (product.quantity <= product.minStock) product.status = "Stock bajo";
 
     try {
-      await addDoc(collection(db, "products"), product);
+    await addDoc(collection(db, "products"), product);
     } catch (error) {
-      console.error("Error al agregar producto:", error);
+    console.error("Error al agregar producto:", error);
     }
 
     setNewProduct({
@@ -171,7 +180,7 @@ export default function ManagementSystem() {
       minStock: "",
       price: "",
       category: "Electrónica",
-      supplier: ""
+      supplier: "",
     });
 
     setShowAddProductModal(false);
@@ -196,22 +205,33 @@ export default function ManagementSystem() {
     if (!hasPermission("canEditProducts")) {
       alert("No tienes permiso para editar productos");
       return;
-    }
+      }
 
-    const updated = { ...editingProduct };
+      const updated = { ...editingProduct };
 
+ 
+      const basePrice = parseFloat(updated.price) || 0;
+      const priceWithIVA = basePrice * 1.19;
+      const priceWithIncrease = priceWithIVA * 1.40; 
+
+      updated.price = basePrice;
+      updated.priceIVA = priceWithIVA;
+      updated.price40 = priceWithIncrease;
+
+    // Estado según stock
     if (updated.quantity === 0) updated.status = "Agotado";
     else if (updated.quantity <= updated.minStock) updated.status = "Stock bajo";
     else updated.status = "En stock";
 
     try {
-      await updateDoc(doc(db, "products", updated.id), updated);
+    await updateDoc(doc(db, "products", updated.id), updated);
     } catch (error) {
-      console.error("Error al actualizar producto:", error);
+    console.error("Error al actualizar producto:", error);
     }
 
     setEditingProduct(null);
-  };
+    };
+
 
   const handleAddSupplier = async () => {
     if (!newSupplier.name) {
@@ -815,32 +835,35 @@ export default function ManagementSystem() {
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Precio IVA</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Precio 40%</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Precio Final</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredProducts.map((product) => (
                       <tr key={product.id} className="hover:bg-gray-50">
                         {editingProduct?.id === product.id ? (
-                          <>
-                            <td className="px-6 py-4">
+                          <>  
+                            <td className="px-3 py-2">
                               <input type="text" value={editingProduct.name} onChange={(e) => setEditingProduct({...editingProduct, name: e.target.value})} className="w-full px-2 py-1 border rounded" />
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-3 py-2">
                               <input type="text" value={editingProduct.sku} onChange={(e) => setEditingProduct({...editingProduct, sku: e.target.value})} className="w-full px-2 py-1 border rounded" />
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-3 py-2">
                               <select value={editingProduct.category} onChange={(e) => setEditingProduct({...editingProduct, category: e.target.value})} className="w-full px-2 py-1 border rounded">
                                 <option>Electrónica</option>
                                 <option>Accesorios</option>
@@ -852,7 +875,7 @@ export default function ManagementSystem() {
                                 <option>Abarrotes</option>
                               </select>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-3 py-2">
                               <select type="text" value={editingProduct.supplier} onChange={(e) => setEditingProduct({...editingProduct, supplier: e.target.value})} className="w-full px-2 py-1 border rounded">
                                 <option value="">Seleccionar proveedor…</option>
                                   {suppliers.map(supplier => 
@@ -862,16 +885,25 @@ export default function ManagementSystem() {
                                   )}
                               </select>
                             </td>
-                            <td className="px-6 py-4">
-                              <input type="number" value={editingProduct.quantity} onChange={(e) => setEditingProduct({...editingProduct, quantity: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded" />
+                            <td className="px-3 py-2">
+                              <input type="number" value={editingProduct.quantity} onChange={(e) => setEditingProduct({...editingProduct, quantity: parseInt(e.target.value) || 0})} className="w-16 px-1 py-1 border rounded" />
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-3 py-2">
                               <input type="number" step="0.01" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: parseFloat(e.target.value) || 0})} className="w-24 px-2 py-1 border rounded" />
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-3 py-2">
+                              <input type="number" step="0.01" value={editingProduct.priceIVA} onChange={(e) => setEditingProduct({...editingProduct, priceIVA: parseFloat(e.target.value) || 0})} className="w-16 px-1 py-1 border rounded" disabled/>
+                            </td>
+                            <td className="px-3 py-2">
+                              <input type="number" step="0.01" value={editingProduct.price40} onChange={(e) => setEditingProduct({...editingProduct, price40: parseFloat(e.target.value) || 0})} className="w-16 px-1 py-1 border rounded" disabled />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input type="number" step="0.01" value={editingProduct.finalPrice} onChange={(e) => setEditingProduct({...editingProduct, finalPrice: parseFloat(e.target.value) || 0})} className="w-24 px-2 py-1 border rounded" />
+                            </td>
+                            <td className="px-3 py-2">
                               <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(editingProduct.status)}`}>{editingProduct.status}</span>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-3 py-2">
                               <div className="flex space-x-2">
                                 <button onClick={handleSaveEdit} className="text-green-600 hover:text-green-900"><Check className="w-5 h-5" /></button>
                                 <button onClick={() => setEditingProduct(null)} className="text-gray-600 hover:text-gray-900"><X className="w-5 h-5" /></button>
@@ -880,14 +912,17 @@ export default function ManagementSystem() {
                           </>
                         ) : (
                           <>
-                            <td className="px-6 py-4"><div className="text-sm font-medium text-gray-900">{product.name}</div></td>
-                            <td className="px-6 py-4"><div className="text-sm text-gray-500">{product.sku}</div></td>
-                            <td className="px-6 py-4"><div className="text-sm text-gray-500">{product.category}</div></td>
-                            <td className="px-6 py-4"><div className="text-sm text-gray-500">{product.supplier}</div></td>
-                            <td className="px-6 py-4"><div className="text-sm text-gray-900">{product.quantity}</div></td>
-                            <td className="px-6 py-4"><div className="text-sm text-gray-900">{formatCurrency(product.price)}</div></td>
-                            <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)}`}>{product.status}</span></td>
-                            <td className="px-6 py-4">
+                            <td className="px-3 py-2"><div className="text-sm font-medium text-gray-900">{product.name}</div></td>
+                            <td className="px-3 py-2"><div className="text-sm text-gray-500">{product.sku}</div></td>
+                            <td className="px-3 py-2"><div className="text-sm text-gray-500">{product.category}</div></td>
+                            <td className="px-3 py-2"><div className="text-sm text-gray-500">{product.supplier}</div></td>
+                            <td className="px-3 py-2"><div className="text-sm text-gray-900">{product.quantity}</div></td>
+                            <td className="px-3 py-2"><div className="text-sm text-gray-900">{formatCurrency(product.price)}</div></td>
+                            <td className="px-3 py-2"><div className="text-sm text-gray-900">{formatCurrency(product.priceIVA)}</div></td>
+                            <td className="px-3 py-2"><div className="text-sm text-gray-900">{formatCurrency(product.price40)}</div></td>
+                            <td className="px-3 py-2"><div className="text-sm text-gray-900">{formatCurrency(product.finalPrice)}</div></td>
+                            <td className="px-3 py-2"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)}`}>{product.status}</span></td>
+                            <td className="px-3 py-2">
                               <div className="flex space-x-3">
                                 {hasPermission('canEditProducts') && (
                                   <button onClick={() => setEditingProduct({ ...product })} className="text-indigo-600 hover:text-indigo-900">
@@ -1102,6 +1137,9 @@ export default function ManagementSystem() {
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio IVA</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio 40%</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio Final</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                                 </tr>
                               </thead>
@@ -1122,6 +1160,15 @@ export default function ManagementSystem() {
                                     </td>
                                     <td className="px-4 py-3">
                                       <div className="text-sm font-medium text-gray-900">{formatCurrency(product.price)}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="text-sm font-medium text-gray-900">{formatCurrency(product.priceIVA)}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="text-sm font-medium text-gray-900">{formatCurrency(product.price40)}</div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                      <div className="text-sm font-medium text-gray-900">{formatCurrency(product.finalPrice)}</div>
                                     </td>
                                     <td className="px-4 py-3">
                                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)}`}>
