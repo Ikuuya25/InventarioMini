@@ -13,6 +13,10 @@ export default defineConfig([
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
+    env: {
+      browser: true,
+      node: true,   // 👈 ESTO HABILITA process, __dirname, require, etc
+    },
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
