@@ -146,8 +146,16 @@ export default function ManagementSystem() {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Formulario productos
-  const [newProduct, setNewProduct] = useState({
-    name: '', sku: '', quantity: '', minStock: '', price: '', category: 'Electrónica', supplier: ''
+ const [newProduct, setNewProduct] = useState({
+  name: '', 
+  sku: '', 
+  quantity: '', 
+  minStock: '', 
+  price: '', 
+  category: 'Electrónica', 
+  supplier: '',
+  iva: 19, // IVA por defecto 19%
+  ganancia: 40 // Ganancia por defecto 40%
   });
 
   // Formulario proveedores
@@ -181,40 +189,52 @@ export default function ManagementSystem() {
   };
 
   // Logica productos
-  const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.sku) return;
+ const handleAddProduct = async () => {
+  if (!newProduct.name || !newProduct.sku) return;
 
-    const product = {
-      name: newProduct.name,
-      sku: newProduct.sku,
-      quantity: parseInt(newProduct.quantity) || 0,
-      minStock: parseInt(newProduct.minStock) || 0,
-      price: parseFloat(newProduct.price) || 0,
-      category: newProduct.category,
-      supplier: newProduct.supplier,
-      status: "En stock"
-    };
+  const precioBase = parseFloat(newProduct.price) || 0;
+  const ivaDecimal = parseFloat(newProduct.iva) / 100 || 0;
+  const gananciaDecimal = parseFloat(newProduct.ganancia) / 100 || 0;
+  
+  const precioConIva = precioBase * (1 + ivaDecimal);
+  const precioFinal = precioConIva * (1 + gananciaDecimal);
 
-    if (product.quantity === 0) product.status = "Agotado";
-    else if (product.quantity <= product.minStock) product.status = "Stock bajo";
+  const product = {
+    name: newProduct.name,
+    sku: newProduct.sku,
+    quantity: parseInt(newProduct.quantity) || 0,
+    minStock: parseInt(newProduct.minStock) || 0,
+    price: precioBase,
+    iva: parseFloat(newProduct.iva) || 19,
+    ganancia: parseFloat(newProduct.ganancia) || 40,
+    precioFinal: precioFinal,
+    category: newProduct.category,
+    supplier: newProduct.supplier,
+    status: "En stock"
+  };
 
-    try {
-      await addDoc(collection(db, "products"), product);
-    } catch (error) {
-      console.error("Error al agregar producto:", error);
-    }
+  if (product.quantity === 0) product.status = "Agotado";
+  else if (product.quantity <= product.minStock) product.status = "Stock bajo";
 
-    setNewProduct({
-      name: "",
-      sku: "",
-      quantity: "",
-      minStock: "",
-      price: "",
-      category: "",
-      supplier: ""
-    });
+  try {
+    await addDoc(collection(db, "products"), product);
+  } catch (error) {
+    console.error("Error al agregar producto:", error);
+  }
 
-    setShowAddProductModal(false);
+  setNewProduct({
+    name: "",
+    sku: "",
+    quantity: "",
+    minStock: "",
+    price: "",
+    category: "",
+    supplier: "",
+    iva: 19,
+    ganancia: 40
+  });
+
+  setShowAddProductModal(false);
   };
 
   const handleDeleteProduct = async (id) => {
@@ -701,7 +721,7 @@ export default function ManagementSystem() {
                 <button
                   onClick={() => {
                     if (!hasPermission('canMakeSales')) {
-                      alert('❌ No tienes permiso para realizar ventas');
+                      alert('No tienes permiso para realizar ventas');
                       return;
                     }
                     setShowSalesModal(true);
@@ -717,7 +737,7 @@ export default function ManagementSystem() {
                 <button
                   onClick={() => {
                     if (!hasPermission('canAddProducts')) {
-                      alert('❌ No tienes permiso para agregar proveedores');
+                      alert('No tienes permiso para agregar proveedores');
                       return;
                     }
                     setShowAddSupplierModal(true);
@@ -881,7 +901,10 @@ export default function ManagementSystem() {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Proveedor</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio Base</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IVA (%)</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ganancia (%)</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio Final</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
                         </tr>
@@ -897,7 +920,31 @@ export default function ManagementSystem() {
                                 <td className="px-6 py-4"><input type="text" value={editingProduct.supplier} onChange={(e) => setEditingProduct({...editingProduct, supplier: e.target.value})} className="w-full px-2 py-1 border rounded" /></td>
                                 <td className="px-6 py-4"><input type="number" value={editingProduct.quantity} onChange={(e) => setEditingProduct({...editingProduct, quantity: parseInt(e.target.value) || 0})} className="w-20 px-2 py-1 border rounded" /></td>
                                 <td className="px-6 py-4"><input type="number" step="0.01" value={editingProduct.price} onChange={(e) => setEditingProduct({...editingProduct, price: parseFloat(e.target.value) || 0})} className="w-24 px-2 py-1 border rounded" /></td>
-                                <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(editingProduct.status)}`}>{editingProduct.status}</span></td>
+                                <td className="px-6 py-4"><input type="number" value={editingProduct.iva || 19} onChange={(e) => setEditingProduct({...editingProduct, iva: parseFloat(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded" /></td>
+                                <td className="px-6 py-4"><input type="number" value={editingProduct.ganancia || 40} onChange={(e) => setEditingProduct({...editingProduct, ganancia: parseFloat(e.target.value) || 0})} className="w-16 px-2 py-1 border rounded" /></td>
+                                <td className="px-6 py-4"><div className="text-sm font-semibold text-green-600">{formatCurrency((editingProduct.price || 0) * (1 + (editingProduct.iva || 19)/100) * (1 + (editingProduct.ganancia || 40)/100))}</div></td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center space-x-2">
+                                    {editingProduct.status === "En stock" && (
+                                      <>
+                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Disponible</span>
+                                      </>
+                                    )}
+                                    {editingProduct.status === "Stock bajo" && (
+                                      <>
+                                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Stock Bajo</span>
+                                      </>
+                                    )}
+                                    {editingProduct.status === "Agotado" && (
+                                      <>
+                                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Agotado</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
                                 <td className="px-6 py-4"><div className="flex space-x-2"><button onClick={handleSaveEdit} className="text-green-600 hover:text-green-900"><Check className="w-5 h-5" /></button><button onClick={() => setEditingProduct(null)} className="text-gray-600 hover:text-gray-900"><X className="w-5 h-5" /></button></div></td>
                               </>
                             ) : (
@@ -908,8 +955,57 @@ export default function ManagementSystem() {
                                 <td className="px-6 py-4"><div className="text-sm text-gray-500 dark:text-gray-300">{product.supplier}</div></td>
                                 <td className="px-6 py-4"><div className="text-sm text-gray-900 dark:text-white">{product.quantity}</div></td>
                                 <td className="px-6 py-4"><div className="text-sm text-gray-900 dark:text-white">{formatCurrency(product.price)}</div></td>
-                                <td className="px-6 py-4"><span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(product.status)}`}>{product.status}</span></td>
-                                <td className="px-6 py-4"><div className="flex space-x-3">{hasPermission('canEditProducts') && (<button onClick={() => setEditingProduct({ ...product })} className="text-indigo-600 hover:text-indigo-900"><Edit2 className="w-5 h-5" /></button>)}{hasPermission('canDeleteProducts') ? (<button onClick={() => handleDeleteProduct(product.id)} className="text-red-600 hover:text-red-900"><Trash2 className="w-5 h-5" /></button>) : (<button onClick={() => alert('❌ No tienes permiso para eliminar productos')} className="text-gray-400 cursor-not-allowed"><Trash2 className="w-5 h-5" /></button>)}</div></td>
+                                <td className="px-6 py-4"><div className="text-sm text-gray-900 dark:text-white">{formatCurrency(product.price * ((product.iva || 19) / 100))}</div></td>
+                                <td className="px-6 py-4"><div className="text-sm text-gray-900 dark:text-white">{formatCurrency((product.price * (1 + (product.iva || 19)/100)) * ((product.ganancia || 40) / 100))}</div></td>
+                                <td className="px-6 py-4"><div className="text-sm font-semibold text-green-600">{formatCurrency(product.precioFinal || (product.price * (1 + (product.iva || 19)/100) * (1 + (product.ganancia || 40)/100)))}</div></td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center space-x-2">
+                                    {product.status === "En stock" && (
+                                      <>
+                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Disponible</span>
+                                      </>
+                                    )}
+                                    {product.status === "Stock bajo" && (
+                                      <>
+                                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Stock Bajo</span>
+                                      </>
+                                    )}
+                                    {product.status === "Agotado" && (
+                                      <>
+                                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Agotado</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center space-x-2">
+                                    {hasPermission('canEditProducts') && (
+                                      <button onClick={() => setEditingProduct({ ...product })} className="text-indigo-600 hover:text-indigo-900" title="Editar">
+                                        <Edit2 className="w-5 h-5" />
+                                      </button>
+                                    )}
+                                    {hasPermission('canDeleteProducts') ? (
+                                      <button onClick={() => handleDeleteProduct(product.id)} className="text-red-600 hover:text-red-900" title="Eliminar">
+                                        <Trash2 className="w-5 h-5" />
+                                      </button>
+                                    ) : (
+                                      <button onClick={() => alert('❌ No tienes permiso para eliminar productos')} className="text-gray-400 cursor-not-allowed" title="Eliminar">
+                                        <Trash2 className="w-5 h-5" />
+                                      </button>
+                                    )}
+                                    <button 
+                                      onClick={() => addToCart(product)} 
+                                      className="flex items-center space-x-1 bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition text-xs"
+                                      title="Agregar al carrito"
+                                    >
+                                      <ShoppingCart className="w-4 h-4" />
+                                      <span>Agregar</span>
+                                    </button>
+                                  </div>
+                                </td>
                               </>
                             )}
                           </tr>
@@ -1285,11 +1381,11 @@ export default function ManagementSystem() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40" onClick={()=>setShowAddSupplierModal(false)} />
           <div className="relative z-50 w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow p-6 overflow-auto max-h-[90vh]">
-            <h3 className="text-lg font-semibold mb-4">Agregar Proveedor</h3>
+            <h3 className="text-lg font-semibold mb-4 dark:text-white">Agregar Proveedor</h3>
             <div className="space-y-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label><input value={newSupplier.name} onChange={(e)=>setNewSupplier({...newSupplier,name:e.target.value})} className="w-full px-3 py-2 border rounded" /></div>
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input value={newSupplier.contact} onChange={(e)=>setNewSupplier({...newSupplier,contact:e.target.value})} className="w-full px-3 py-2 border rounded" /></div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label><input value={newSupplier.phone} onChange={(e)=>setNewSupplier({...newSupplier,phone:e.target.value})} className="w-full px-3 py-2 border rounded" /></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label><input value={newSupplier.address} onChange={(e)=>setNewSupplier({...newSupplier,address:e.target.value})} className="w-full px-3 py-2 border rounded" /></div></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-white">Nombre</label><input value={newSupplier.name} onChange={(e)=>setNewSupplier({...newSupplier,name:e.target.value})} className="w-full px-3 py-2 border rounded" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-white">Email</label><input value={newSupplier.contact} onChange={(e)=>setNewSupplier({...newSupplier,contact:e.target.value})} className="w-full px-3 py-2 border rounded" /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 dark:text-white"><div><label className="block text-sm font-medium text-white-700 mb-1">Teléfono</label><input value={newSupplier.phone} onChange={(e)=>setNewSupplier({...newSupplier,phone:e.target.value})} className="w-full px-3 py-2 border rounded" /></div><div><label className="block text-sm font-medium text-white-700 mb-1">Dirección</label><input value={newSupplier.address} onChange={(e)=>setNewSupplier({...newSupplier,address:e.target.value})} className="w-full px-3 py-2 border rounded" /></div></div>
               <div className="flex justify-end space-x-2"><button onClick={()=>setShowAddSupplierModal(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button onClick={handleAddSupplier} className="px-4 py-2 bg-purple-600 text-white rounded">Agregar</button></div>
             </div>
           </div>
@@ -1300,24 +1396,61 @@ export default function ManagementSystem() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40" onClick={()=>setShowSalesModal(false)} />
           <div className="relative z-50 w-full max-w-2xl bg-white dark:bg-gray-800 rounded-lg shadow p-6 overflow-auto max-h-[90vh]">
-            <h3 className="text-lg font-semibold mb-4">Registrar Venta</h3>
+            <h3 className="text-lg font-semibold mb-4 dark:text-white">Registrar Venta</h3>
             <div className="space-y-4">
               <div className="overflow-x-auto">
                 <table className="min-w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-900"><tr><th className="px-4 py-2 text-left text-sm">Producto</th><th className="px-4 py-2 text-left text-sm">Precio</th><th className="px-4 py-2 text-left text-sm">Cantidad</th><th className="px-4 py-2 text-left text-sm">Subtotal</th><th className="px-4 py-2 text-left text-sm">Acciones</th></tr></thead>
+                  <thead className="bg-gray-50 dark:bg-gray-900">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-sm dark:text-gray-300">Producto</th>
+                      <th className="px-4 py-2 text-left text-sm dark:text-gray-300">Precio</th>
+                      <th className="px-4 py-2 text-left text-sm dark:text-gray-300">Cantidad</th>
+                      <th className="px-4 py-2 text-left text-sm dark:text-gray-300">Subtotal</th>
+                      <th className="px-4 py-2 text-left text-sm dark:text-gray-300">Acciones</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     {cart.map(item => (
-                      <tr key={item.id} className="border-b"><td className="px-4 py-2">{item.name}</td><td className="px-4 py-2">{formatCurrency(item.price)}</td><td className="px-4 py-2"><input type="number" value={item.quantity} onChange={(e)=>updateCartQuantity(item.id, parseInt(e.target.value) || 0)} className="w-20 px-2 py-1 border rounded" /></td><td className="px-4 py-2">{formatCurrency(item.price*item.quantity)}</td><td className="px-4 py-2"><button onClick={()=>removeFromCart(item.id)} className="text-red-600">Eliminar</button></td></tr>
+                      <tr key={item.id} className="border-b dark:border-gray-700">
+                        <td className="px-4 py-2 dark:text-white">{item.name}</td>
+                        <td className="px-4 py-2 dark:text-white">{formatCurrency(item.price)}</td>
+                        <td className="px-4 py-2">
+                          <input 
+                            type="number" 
+                            value={item.quantity} 
+                            onChange={(e)=>updateCartQuantity(item.id, parseInt(e.target.value) || 0)} 
+                            className="w-20 px-2 py-1 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" 
+                          />
+                        </td>
+                        <td className="px-4 py-2 dark:text-white">{formatCurrency(item.price*item.quantity)}</td>
+                        <td className="px-4 py-2">
+                          <button onClick={()=>removeFromCart(item.id)} className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">
+                            Eliminar
+                          </button>
+                        </td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              <div className="flex justify-between items-center"><div></div><div><p className="text-lg font-semibold">Total: {formatCurrency(cartTotal)}</p><div className="mt-2 flex space-x-2"><button onClick={()=>setShowSalesModal(false)} className="px-4 py-2 bg-gray-200 rounded">Cancelar</button><button onClick={completeSale} className="px-4 py-2 bg-green-600 text-white rounded">Completar Venta</button></div></div></div>
+              <div className="flex justify-between items-center">
+                <div></div>
+                <div>
+                  <p className="text-lg font-semibold dark:text-white">Total: {formatCurrency(cartTotal)}</p>
+                  <div className="mt-2 flex space-x-2">
+                    <button onClick={()=>setShowSalesModal(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600">
+                      Cancelar
+                    </button>
+                    <button onClick={completeSale} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                      Completar Venta
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
