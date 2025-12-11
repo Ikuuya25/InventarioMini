@@ -22,6 +22,8 @@ export default function ManagementSystem() {
     { id: 3, username: 'supervisor', password: 'super123', name: 'Supervisor', role: 'supervisor' }
   ];
 
+  
+
   // Sistema de permisos
   const permissions = {
     admin: {
@@ -256,22 +258,32 @@ export default function ManagementSystem() {
     if (!hasPermission("canEditProducts")) {
       alert("No tienes permiso para editar productos");
       return;
-    }
+      }
 
-    const updated = { ...editingProduct };
+      const updated = { ...editingProduct };
 
+ 
+      const basePrice = parseFloat(updated.price) || 0;
+      const priceWithIVA = basePrice * 1.19;
+      const priceWithIncrease = priceWithIVA * 1.40; 
+
+      updated.price = basePrice;
+      updated.priceIVA = priceWithIVA;
+      updated.price40 = priceWithIncrease;
+
+    // Estado según stock
     if (updated.quantity === 0) updated.status = "Agotado";
     else if (updated.quantity <= updated.minStock) updated.status = "Stock bajo";
     else updated.status = "En stock";
 
     try {
-      await updateDoc(doc(db, "products", updated.id), updated);
+    await updateDoc(doc(db, "products", updated.id), updated);
     } catch (error) {
-      console.error("Error al actualizar producto:", error);
+    console.error("Error al actualizar producto:", error);
     }
 
     setEditingProduct(null);
-  };
+    };
 
   const handleAddSupplier = async () => {
     if (!newSupplier.name) {
@@ -299,7 +311,7 @@ export default function ManagementSystem() {
   const handleDeleteSupplier = async (supplierId) => {
     const supplier = suppliers.find(s => s.id === supplierId);
     const hasProducts = products.some(p => p.supplier === supplier.name);
-    
+
     if (hasProducts) {
       alert('No puedes eliminar este proveedor porque tiene productos asociados');
       return;
@@ -395,6 +407,7 @@ export default function ManagementSystem() {
     }
   };
 
+
   // Calculos
   const totalProducts = products.length;
   const totalValue = products.reduce((sum, p) => sum + (p.quantity * p.price), 0);
@@ -406,7 +419,8 @@ export default function ManagementSystem() {
   
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku.toLowerCase().includes(searchTerm.toLowerCase())
+    product.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.supplier.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getStatusColor = (status) => {
@@ -1165,6 +1179,9 @@ export default function ManagementSystem() {
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio IVA</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio 40%</th>
+                                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Precio Final</th>
                                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                                 </tr>
                               </thead>
@@ -1255,6 +1272,12 @@ export default function ManagementSystem() {
                     <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
                       <BarChart3 className="w-6 h-6 text-green-600 dark:text-green-400" />
                     </div>
+                    <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                      <BarChart3 className="w-6 h-6 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                  <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                    {formatCurrency(monthlySalesTotal)}
                   </div>
                   <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                     {formatCurrency(monthlySalesTotal)}
@@ -1352,6 +1375,26 @@ export default function ManagementSystem() {
                   <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <span className="text-gray-700 dark:text-gray-200">Audio</span>
                     <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Audio').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Bebidas</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Bebidas').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Lácteos y Fiambres</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Lácteos y Fiambres').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Panadería y Pastelería</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Panadería y Pastelería').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Snacks y Dulces</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Snacks y Dulces').length} productos</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-700">Abarrotes</span>
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-medium">{products.filter(p => p.category === 'Abarrotes').length} productos</span>
                   </div>
                 </div>
               </div>
@@ -1451,6 +1494,7 @@ export default function ManagementSystem() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
