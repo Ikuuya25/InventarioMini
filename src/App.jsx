@@ -369,18 +369,18 @@ export default function App() {
   const handleAddProduct = useCallback(async () => {
     if (!newProduct.name || !newProduct.sku) return alert("Nombre y SKU obligatorios");
     const precioBase = parseFloat(newProduct.price) || 0;
-    const iva = parseFloat(newProduct.iva) || 19;
-    const ganancia = parseFloat(newProduct.ganancia) || 40;
-    const precioFinal = precioBase * (1 + iva / 100) * (1 + ganancia / 100);
+    const priceIVA = newProduct.price * 1.19;
+    const price40 = newProduct.priceIVA * 1.40;
+    const finalPrice = 0;
     const product = {
       name: newProduct.name,
       sku: newProduct.sku,
       quantity: parseInt(newProduct.quantity) || 0,
       minStock: parseInt(newProduct.minStock) || 0,
       price: precioBase,
-      iva,
-      ganancia,
-      precioFinal,
+      priceIVA,
+      price40,
+      finalPrice,
       category: newProduct.category,
       supplier: newProduct.supplier,
       status: "En stock",
@@ -569,6 +569,9 @@ export default function App() {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">SKU</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Stock</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Precio</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Iva</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">40%</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Final</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Estado</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Acciones</th>
                       </tr>
@@ -576,20 +579,54 @@ export default function App() {
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                       {filteredProducts.map(p => (
                         <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                          
                           <td className="px-6 py-4 text-gray-900 dark:text-white">{p.name}</td>
+
                           <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{p.sku}</td>
-                          <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{p.quantity}</td>
-                          <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{formatCurrency(p.precioFinal || (p.price * (1 + ((p.iva || 19) / 100)) * (1 + ((p.ganancia || 40) / 100))))}</td>
+
+                          <td className="px-6 py-4 text-gray-700 dark:text-gray-300">
+                            {editingProduct?.id === p.id
+                              ? <input type="number" value={editingProduct.quantity} onChange={e => setEditingProduct({ ...editingProduct, quantity: Number(e.target.value) || 0 })} className="w-20 px-2 py-1 border rounded" />
+                              : p.quantity}
+                          </td>
+
+                          <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
+                            {editingProduct?.id === p.id
+                              ? <input type="number" step="0.01" value={editingProduct.price} onChange={e => setEditingProduct({ ...editingProduct, price: Number(e.target.value) || 0 })} className="w-24 px-2 py-1 border rounded" />
+                              : formatCurrency(p.price)}
+                          </td>
+
+                          <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{formatCurrency(p.priceIVA)}</td>
+
+                          <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{formatCurrency(p.price40)}</td>
+
+                          <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">
+                            {editingProduct?.id === p.id
+                              ? <input type="number" step="0.01" value={editingProduct.finalPrice} onChange={e => setEditingProduct({ ...editingProduct, finalPrice: Number(e.target.value) || 0 })} className="w-24 px-2 py-1 border rounded" />
+                              : formatCurrency(p.finalPrice)}
+                          </td>
+
                           <td className="px-6 py-4">
                             <span className={`px-2 py-1 text-xs rounded-full ${p.status === "Agotado" ? "bg-red-100 text-red-800" : p.status === "Stock bajo" ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}`}>{p.status}</span>
                           </td>
+
                           <td className="px-6 py-4">
                             <div className="flex items-center space-x-2">
-                              {hasPermission("canEditProducts") ? <button onClick={() => setEditingProduct(p)} className="text-indigo-600" title="Editar"><Edit2 className="w-5 h-5" /></button> : null}
-                              {hasPermission("canDeleteProducts") ? <button onClick={() => handleDeleteProduct(p.id)} className="text-red-600" title="Eliminar"><Trash2 className="w-5 h-5" /></button> : <button onClick={() => alert("No tienes permiso")} className="text-gray-400"><Trash2 className="w-5 h-5" /></button>}
+                              {editingProduct?.id === p.id
+                                ? <>
+                                    <button onClick={() => handleSaveEditProduct(editingProduct)} className="text-green-600" title="Guardar">💾</button>
+                                    <button onClick={() => setEditingProduct(null)} className="text-gray-500" title="Cancelar">❌</button>
+                                  </>
+                                : hasPermission("canEditProducts") && <button onClick={() => setEditingProduct({ ...p })} className="text-indigo-600" title="Editar"><Edit2 className="w-5 h-5" /></button>}
+                              
+                              {hasPermission("canDeleteProducts")
+                                ? <button onClick={() => handleDeleteProduct(p.id)} className="text-red-600" title="Eliminar"><Trash2 className="w-5 h-5" /></button>
+                                : <button onClick={() => alert("No tienes permiso")} className="text-gray-400"><Trash2 className="w-5 h-5" /></button>}
+                              
                               <button onClick={() => addToCart(p)} className="bg-green-600 text-white px-2 py-1 rounded">Agregar</button>
                             </div>
                           </td>
+
                         </tr>
                       ))}
                     </tbody>
@@ -600,16 +637,70 @@ export default function App() {
                 <div className="md:hidden p-4 space-y-3">
                   {filteredProducts.map(p => (
                     <div key={p.id} className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow border">
+                      
+                      {/* Header */}
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900 dark:text-white">{p.name}</h4>
                           <p className="text-sm text-gray-500 dark:text-gray-400">SKU: {p.sku}</p>
-                          <p className="mt-2 font-semibold text-gray-900 dark:text-white">{formatCurrency(p.precioFinal || (p.price * 1.19 * 1.4))} • Stock: {p.quantity}</p>
                         </div>
+
+                        {/* Acciones */}
                         <div className="ml-2 flex flex-col space-y-2">
-                          <button onClick={() => addToCart(p)} className="bg-green-600 text-white px-3 py-2 rounded">Agregar</button>
+                          {editingProduct?.id === p.id
+                            ? <>
+                                <button onClick={() => handleSaveEditProduct(editingProduct)} className="text-green-600 text-sm">💾</button>
+                                <button onClick={() => setEditingProduct(null)} className="text-gray-500 text-sm">❌</button>
+                              </>
+                            : hasPermission("canEditProducts") && (
+                                <button onClick={() => setEditingProduct({ ...p })} className="text-indigo-600 text-sm">✏️</button>
+                              )
+                          }
+
+                          {hasPermission("canDeleteProducts")
+                            ? <button onClick={() => handleDeleteProduct(p.id)} className="text-red-600 text-sm">🗑️</button>
+                            : <button onClick={() => alert("No tienes permiso")} className="text-gray-400 text-sm cursor-not-allowed">🗑️</button>
+                          }
+
+                          <button onClick={() => addToCart(p)} className="bg-green-600 text-white px-3 py-1 rounded text-sm">Agregar</button>
+                        </div>
+
+                      </div>
+
+                      {/* Precios */}
+                      <div className="mt-3 space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Precio</span>
+                          {editingProduct?.id === p.id
+                            ? <input type="number" step="0.01" value={editingProduct.price} onChange={e => setEditingProduct({ ...editingProduct, price: Number(e.target.value) || 0 })} className="w-24 px-2 py-1 border rounded text-right" />
+                            : <span className="text-gray-900 dark:text-white">{formatCurrency(p.price)}</span>}
+                        </div>
+
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">IVA</span>
+                          <span className="text-gray-900 dark:text-white">{formatCurrency(p.priceIVA)}</span>
+                        </div>
+
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">40%</span>
+                          <span className="text-gray-900 dark:text-white">{formatCurrency(p.price40)}</span>
+                        </div>
+
+                        <div className="flex justify-between font-semibold">
+                          <span className="text-gray-700 dark:text-gray-300">Final</span>
+                          {editingProduct?.id === p.id
+                            ? <input type="number" step="0.01" value={editingProduct.finalPrice} onChange={e => setEditingProduct({ ...editingProduct, finalPrice: Number(e.target.value) || 0 })} className="w-24 px-2 py-1 border rounded text-right font-semibold" />
+                            : <span className="text-gray-900 dark:text-white">{formatCurrency(p.finalPrice)}</span>}
+                        </div>
+
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Stock</span>
+                          {editingProduct?.id === p.id
+                            ? <input type="number" value={editingProduct.quantity} onChange={e => setEditingProduct({ ...editingProduct, quantity: Number(e.target.value) || 0 })} className="w-20 px-2 py-1 border rounded text-right" />
+                            : <span className="text-gray-900 dark:text-white">{p.quantity}</span>}
                         </div>
                       </div>
+
                     </div>
                   ))}
                 </div>
